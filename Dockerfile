@@ -5,26 +5,16 @@ FROM n8nio/n8n:latest
 USER root
 
 # Combine update and install into a single RUN instruction for efficiency.
-# This prevents caching issues if the package lists change.
-# We also add error handling to see which package might be failing.
+# This uses the correct package names for Alpine Linux.
 RUN apk update && \
     apk add --no-cache \
         python3 \
         py3-pip \
         ffmpeg \
         firefox \
-        tigervnc-standalone-server \
-        font-noto \
-        dbus || \
-    (echo "------ FAILED to install packages. Trying alternative font package... ------" && \
-     apk add --no-cache \
-        python3 \
-        py3-pip \
-        ffmpeg \
-        firefox \
-        tigervnc-standalone-server \
-        ttf-dejavu \
-        dbus)
+        tigervnc \
+        font-noto-cjk \
+        dbus
 
 # Use pip to install the latest version of yt-dlp
 RUN pip install --no-cache-dir -U yt-dlp
