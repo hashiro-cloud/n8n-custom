@@ -4,29 +4,30 @@ FROM n8nio/n8n:latest
 # Switch to the root user to install system packages
 USER root
 
-# Combine update and install into a single RUN instruction for efficiency.
+# Install all necessary dependencies for n8n, yt-dlp, and the new cookie tool
 RUN apk update && \
     apk add --no-cache \
         python3 \
         py3-pip \
         ffmpeg \
-        firefox \
-        tigervnc \
-        font-noto-cjk \
-        dbus
+        git \
+        nodejs \
+        npm \
+        # Dependencies for firefox-logins-fetcher
+        build-base \
+        python3-dev \
+        libffi-dev
 
-# Use pip to install the latest version of yt-dlp.
-# Add the --break-system-packages flag to override the PEP 668 protection.
-# This is safe to do in a controlled Docker environment.
-RUN pip install --no-cache-dir -U yt-dlp --break-system-packages
+# Use pip to install the latest versions of yt-dlp and the cookie fetcher
+# The --break-system-packages flag is required.
+RUN pip install --no-cache-dir -U \
+    yt-dlp \
+    firefox-logins-fetcher \
+    --break-system-packages
 
-# Create the directory where Firefox will store its profile data
+# Create the directory where Firefox profiles will be stored
 # and ensure the 'node' user (which n8n runs as) owns it.
-# This directory will be part of the main n8n persistent volume.
 RUN mkdir -p /home/node/.mozilla && chown -R node:node /home/node/.mozilla
-
-# Expose the VNC port for the one-time login
-EXPOSE 5901
 
 # Switch back to the non-privileged 'node' user for security
 USER node
