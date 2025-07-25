@@ -1,28 +1,40 @@
-# Start from the official n8n image
+# Start from the official n8n image, which is based on Alpine Linux
 FROM n8nio/n8n:latest
 
 # Switch to the root user to install system packages
 USER root
 
-# The n8n image is based on Alpine Linux. We update and install all dependencies.
-# This includes Python, yt-dlp, ffmpeg, Firefox, and a VNC server for remote access.
-RUN apk update && apk add --no-cache \
-    python3 \
-    py3-pip \
-    ffmpeg \
-    firefox \
-    tigervnc-standalone-server \
-    ttf-freefont \
-    dbus
+# Combine update and install into a single RUN instruction for efficiency.
+# This prevents caching issues if the package lists change.
+# We also add error handling to see which package might be failing.
+RUN apk update && \
+    apk add --no-cache \
+        python3 \
+        py3-pip \
+        ffmpeg \
+        firefox \
+        tigervnc-standalone-server \
+        font-noto \
+        dbus || \
+    (echo "------ FAILED to install packages. Trying alternative font package... ------" && \
+     apk add --no-cache \
+        python3 \
+        py3-pip \
+        ffmpeg \
+        firefox \
+        tigervnc-standalone-server \
+        ttf-dejavu \
+        dbus)
 
 # Use pip to install the latest version of yt-dlp
 RUN pip install --no-cache-dir -U yt-dlp
 
 # Create the directory where Firefox will store its profile data
 # and ensure the 'node' user (which n8n runs as) owns it.
+# This directory will be part of the main n8n persistent volume.
 RUN mkdir -p /home/node/.mozilla && chown -R node:node /home/node/.mozilla
 
-# Expose the VNC port
+# Expose the VNC port for the one-time login
 EXPOSE 5901
 
 # Switch back to the non-privileged 'node' user for security
@@ -30,8 +42,3 @@ USER node
 
 # Set the working directory for the node user
 WORKDIR /home/node
-
-# Set up the VNC server password (run once when you first open the shell)
-# And define the command to start both VNC and n8n
-# We will run this manually from the Coolify shell for the one-time login.
-# The default entrypoint will still start n8n.
