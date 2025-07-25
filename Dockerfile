@@ -5,7 +5,6 @@ FROM n8nio/n8n:latest
 USER root
 
 # Combine update and install into a single RUN instruction for efficiency.
-# This uses the correct package names for Alpine Linux.
 RUN apk update && \
     apk add --no-cache \
         python3 \
@@ -16,8 +15,10 @@ RUN apk update && \
         font-noto-cjk \
         dbus
 
-# Use pip to install the latest version of yt-dlp
-RUN pip install --no-cache-dir -U yt-dlp
+# Use pip to install the latest version of yt-dlp.
+# Add the --break-system-packages flag to override the PEP 668 protection.
+# This is safe to do in a controlled Docker environment.
+RUN pip install --no-cache-dir -U yt-dlp --break-system-packages
 
 # Create the directory where Firefox will store its profile data
 # and ensure the 'node' user (which n8n runs as) owns it.
