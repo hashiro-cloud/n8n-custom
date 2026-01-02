@@ -47,6 +47,14 @@ EXPOSE 5901
 
 # 5. Finalize permissions
 RUN mkdir -p /home/node/downloads && chown -R node:node /home/node/downloads
+# Fix the "Xsession" error by creating the directory and script early
+RUN mkdir -p /home/node/.vnc && \
+    echo -e "#!/bin/sh\nunset SESSION_MANAGER\nunset DBUS_SESSION_BUS_ADDRESS\nstartxfce4 &" > /home/node/.vnc/xstartup && \
+    chmod 755 /home/node/.vnc/xstartup && \
+    chown -R node:node /home/node/.vnc
+
+# Add this to tell TigerVNC to stop looking for Xsession
+ENV XAUTHORITY=/home/node/.Xauthority
 
 USER node
 WORKDIR /home/node
