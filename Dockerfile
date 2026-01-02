@@ -1,45 +1,44 @@
-# --- Stage 1: Build Tools (Alpine) ---
-FROM alpine:latest AS builder
-RUN apk add --no-cache \
-    perl perl-utils tigervnc xvfb xfce4 xfce4-terminal dbus \
-    python3 py3-pip firefox ffmpeg wget tar apk-tools-static
+# Start from the official n8n image, which is based on Alpine Linux
+FROM n8nio/n8n:2.0.2
 
-# --- Stage 2: Final n8n Image ---
-FROM n8nio/n8n:latest
+# Switch to the root user to install system packages
 USER root
 
-# Copy tools from builder
-COPY --from=builder /usr/bin /usr/bin
-COPY --from=builder /usr/lib /usr/lib
-COPY --from=builder /lib /lib
-COPY --from=builder /usr/share /usr/share
-COPY --from=builder /sbin/apk.static /sbin/apk
+# Install all necessary dependencies in a single, robust command.
+# This includes a minimal XFCE desktop environment for VNC to use,
+# which solves the "no desktop session" error permanently.
+RUN apk update && \
+    apk add --no-cache \
+        python3 \
+        py3-pip \
+        ffmpeg \
+        firefox \
+        tigervnc \
+        xfce4 \
+        xfce4-terminal \
+        dbus
 
-# Install yt-dlp
-RUN python3 -m pip install --no-cache-dir -U yt-dlp --break-system-packages
+# Use pip to install the latest version of yt-dlp.
+# The --break-system-packages flag is required for modern images.
+RUN pip install --no-cache-dir -U yt-dlp --break-system-packages
 
-# 1. Setup VNC Config
+# Create the VNC configuration directory for the 'node' user
 RUN mkdir -p /home/node/.vnc && \
-    echo -e "#!/bin/sh\nunset SESSION_MANAGER\nunset DBUS_SESSION_BUS_ADDRESS\nstartxfce4 &" > /home/node/.vnc/xstartup && \
-    chmod 755 /home/node/.vnc/xstartup
+    # Create the xstartup file that VNC will run. This starts the XFCE desktop.
+    echo '#!/bin/sh\n/usr/bin/startxfce4' > /home/node/.vnc/xstartup && \
+    # Make the startup file executable
+    chmod +x /home/node/.vnc/xstartup && \
+    # Ensure the 'node' user owns all the files
+    chown -R node:node /home/node/.vnc
 
-# 2. Create the wrapper script
-RUN echo -e '#!/bin/sh\n\
-# Clean up old VNC locks\n\
-rm -rf /tmp/.X1-lock /tmp/.X11-unix/X1\n\
-\n\
-# Start VNC Server in background (No password for now)\n\
-vncserver :1 -geometry 1280x800 -depth 24 -SecurityTypes None\n\
-\n\
-# Call the ORIGINAL n8n entrypoint to start n8n properly\n\
-exec /docker-entrypoint.sh "$@"' > /entrypoint-vnc.sh && \
-chmod +x /entrypoint-vnc.sh
+# Create the directory for Firefox profiles and set ownership
+RUN mkdir -p /home/node/.mozilla && chown -R node:node /home/node/.mozilla
 
-# Final permissions
-RUN chown -R node:node /home/node
+# Expose the VNC port
+EXPOSE 5901
+
+# Switch back to the non-privileged 'node' user for security
 USER node
-ENV DISPLAY=:1
-EXPOSE 5678 5901
 
-# 3. Use our new script as the entrypoint
-ENTRYPOINT ["/entrypoint-vnc.sh"]
+# Set the working directory for the node user
+WORKDIR /home/node
