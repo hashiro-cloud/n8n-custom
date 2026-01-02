@@ -1,8 +1,9 @@
-# --- Stage 1: The Builder (Full Alpine) ---
-FROM alpine:latest AS builder
+FROM n8nio/n8n:latest
 
-# 1. Install every system package you need here
-RUN apk add --no-cache \
+USER root
+
+# 1. Re-install the core tools (including Perl for VNC)
+RUN apk update && apk add --no-cache \
     perl \
     perl-utils \
     tigervnc \
@@ -12,49 +13,27 @@ RUN apk add --no-cache \
     dbus \
     python3 \
     py3-pip \
-    ffmpeg \
     firefox \
-    wget \
-    tar \
-    apk-tools-static
+    ffmpeg
 
-# --- Stage 2: The Final n8n Container ---
-FROM n8nio/n8n:latest
-
-USER root
-
-# 2. "Teleport" all tools and libraries from the builder into n8n
-COPY --from=builder /usr/bin /usr/bin
-COPY --from=builder /usr/lib /usr/lib
-COPY --from=builder /lib /lib
-COPY --from=builder /usr/share /usr/share
-COPY --from=builder /etc/alpine-release /etc/alpine-release
-# This specifically restores the 'apk' command to the container
-COPY --from=builder /sbin/apk.static /sbin/apk
-
-# 3. Install yt-dlp using the python we just moved
+# 2. Install yt-dlp
 RUN python3 -m pip install --no-cache-dir -U yt-dlp --break-system-packages
 
-# 4. Setup VNC Config
-RUN mkdir -p /home/node/.vnc && \
-    echo '#!/bin/sh\n/usr/bin/startxfce4' > /home/node/.vnc/xstartup && \
-    chmod +x /home/node/.vnc/xstartup && \
-    chown -R node:node /home/node/.vnc
+# 3. Create the missing Xsession that TigerVNC is looking for
+RUN mkdir -p /etc/X11/xinit/ && \
+    echo -e "#!/bin/sh\nexec startxfce4" > /etc/X11/xinit/xinitrc && \
+    chmod +x /etc/X11/xinit/xinitrc
 
-# Set display for VNC
-ENV DISPLAY=:1
-EXPOSE 5901
-
-# 5. Finalize permissions
-RUN mkdir -p /home/node/downloads && chown -R node:node /home/node/downloads
-# Fix the "Xsession" error by creating the directory and script early
+# 4. Configure the node user's VNC startup
 RUN mkdir -p /home/node/.vnc && \
     echo -e "#!/bin/sh\nunset SESSION_MANAGER\nunset DBUS_SESSION_BUS_ADDRESS\nstartxfce4 &" > /home/node/.vnc/xstartup && \
     chmod 755 /home/node/.vnc/xstartup && \
     chown -R node:node /home/node/.vnc
 
-# Add this to tell TigerVNC to stop looking for Xsession
-ENV XAUTHORITY=/home/node/.Xauthority
+# Set permissions for the downloads folder
+RUN mkdir -p /home/node/downloads && chown -R node:node /home/node/downloads
 
 USER node
 WORKDIR /home/node
+ENV DISPLAY=:1
+EXPOSE 5901
