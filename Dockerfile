@@ -1,43 +1,29 @@
-# Change 'latest' to 'latest-alpine' to ensure 'apk' is available
-FROM n8nio/n8n:latest-alpine
+# Stage 1: Get tools from a real Alpine image
+FROM alpine:latest AS builder
+RUN apk add --no-cache \
+    perl perl-utils tigervnc xvfb xfce4 xfce4-terminal dbus \
+    python3 py3-pip firefox ffmpeg wget tar
 
-# You MUST switch to root to use apk
+# Stage 2: The actual n8n image
+FROM n8nio/n8n:latest
 USER root
 
-# Now your original command will work perfectly
-RUN apk update && apk add --no-cache \
-    perl \
-    perl-utils \
-    tigervnc \
-    xvfb \
-    xfce4 \
-    xfce4-terminal \
-    dbus \
-    python3 \
-    py3-pip \
-    firefox \
-    ffmpeg
+# Copy the tools from the builder stage to n8n
+COPY --from=builder /usr/bin /usr/bin
+COPY --from=builder /usr/lib /usr/lib
+COPY --from=builder /lib /lib
+COPY --from=builder /usr/share /usr/share
 
-# Install yt-dlp
+# Install yt-dlp using the python we just moved
 RUN python3 -m pip install --no-cache-dir -U yt-dlp --break-system-packages
 
-# ... (rest of your original file remains the same)
-
-# Switch back to the node user at the end for security
-USER node
-
-# 3. Create the missing Xsession that TigerVNC is looking for
-RUN mkdir -p /etc/X11/xinit/ && \
-    echo -e "#!/bin/sh\nexec startxfce4" > /etc/X11/xinit/xinitrc && \
-    chmod +x /etc/X11/xinit/xinitrc
-
-# 4. Configure the node user's VNC startup
+# Fix XFCE/VNC Startup (The Xsession error fix)
 RUN mkdir -p /home/node/.vnc && \
     echo -e "#!/bin/sh\nunset SESSION_MANAGER\nunset DBUS_SESSION_BUS_ADDRESS\nstartxfce4 &" > /home/node/.vnc/xstartup && \
     chmod 755 /home/node/.vnc/xstartup && \
     chown -R node:node /home/node/.vnc
 
-# Set permissions for the downloads folder
+# Set permissions for downloads
 RUN mkdir -p /home/node/downloads && chown -R node:node /home/node/downloads
 
 USER node
