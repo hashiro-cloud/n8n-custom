@@ -1,26 +1,9 @@
-# Start from n8n v2
-FROM n8nio/n8n:latest
+# Stage 1: Use a standard Alpine image to collect binaries
+FROM alpine:latest AS builder
 
-USER root
-
-# -------------------------------------------------------
-# FIX: Re-install apk in n8n v2 (Distroless fix)
-# -------------------------------------------------------
-RUN ARCH=$(uname -m) && \
-    wget -qO- "https://dl-cdn.alpinelinux.org/alpine/latest-stable/main/${ARCH}/" | \
-    grep -o 'href="apk-tools-static-[0-9][^"]*\.apk"' | sed 's/href="//' | head -1 > /tmp/apk_name.txt && \
-    APK_PACKAGE=$(cat /tmp/apk_name.txt) && \
-    wget -q "https://dl-cdn.alpinelinux.org/alpine/latest-stable/main/${ARCH}/${APK_PACKAGE}" && \
-    tar -xzf ${APK_PACKAGE} && \
-    mv sbin/apk.static /sbin/apk && \
-    rm ${APK_PACKAGE} /tmp/apk_name.txt && \
-    # Now we can finally use apk
-    apk update
-
-# -------------------------------------------------------
-# Install your dependencies
-# -------------------------------------------------------
-RUN apk add --no-cache \
+# Install everything you need here (standard Alpine has apk)
+RUN apk update && \
+    apk add --no-cache \
         python3 \
         py3-pip \
         ffmpeg \
@@ -28,21 +11,34 @@ RUN apk add --no-cache \
         tigervnc \
         xfce4 \
         xfce4-terminal \
-        dbus
+        dbus \
+        tar
 
-# Install yt-dlp
-RUN pip install --no-cache-dir -U yt-dlp --break-system-packages
+# Stage 2: Final n8n image
+FROM n8nio/n8n:latest
 
-# Setup VNC Configuration
+USER root
+
+# Copy the installed binaries and libraries from the builder stage
+COPY --from=builder /usr/bin /usr/bin
+# Note: We also need the shared libraries for these apps to run
+COPY --from=builder /usr/lib /usr/lib
+COPY --from=builder /lib /lib
+COPY --from=builder /etc/alpine-release /etc/alpine-release
+
+# Install yt-dlp using the python we just moved over
+RUN python3 -m pip install --no-cache-dir -U yt-dlp --break-system-packages
+
+# Setup VNC (Your original configuration)
 RUN mkdir -p /home/node/.vnc && \
     echo '#!/bin/sh\n/usr/bin/startxfce4' > /home/node/.vnc/xstartup && \
     chmod +x /home/node/.vnc/xstartup && \
     chown -R node:node /home/node/.vnc
 
-# Mozilla profiles
 RUN mkdir -p /home/node/.mozilla && chown -R node:node /home/node/.mozilla
 
 EXPOSE 5901
 
+# Switch to node user
 USER node
 WORKDIR /home/node
