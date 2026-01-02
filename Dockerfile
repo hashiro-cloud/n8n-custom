@@ -1,21 +1,24 @@
-# Start from the official n8n image
+# Start from n8n v2
 FROM n8nio/n8n:latest
 
-# Switch to root user
 USER root
 
 # -------------------------------------------------------
-# FIX: Re-install apk-tools (removed in n8n v2+)
+# FIX: Re-install apk in n8n v2 (Distroless fix)
 # -------------------------------------------------------
-RUN wget -q https://dl-cdn.alpinelinux.org/alpine/v3.20/main/x86_64/apk-tools-static-2.14.4-r0.apk && \
-    tar -xzf apk-tools-static-*.apk && \
+RUN ARCH=$(uname -m) && \
+    wget -qO- "https://dl-cdn.alpinelinux.org/alpine/latest-stable/main/${ARCH}/" | \
+    grep -o 'href="apk-tools-static-[0-9][^"]*\.apk"' | sed 's/href="//' | head -1 > /tmp/apk_name.txt && \
+    APK_PACKAGE=$(cat /tmp/apk_name.txt) && \
+    wget -q "https://dl-cdn.alpinelinux.org/alpine/latest-stable/main/${ARCH}/${APK_PACKAGE}" && \
+    tar -xzf ${APK_PACKAGE} && \
     mv sbin/apk.static /sbin/apk && \
-    rm apk-tools-static-*.apk && \
-    # Initialize apk
+    rm ${APK_PACKAGE} /tmp/apk_name.txt && \
+    # Now we can finally use apk
     apk update
 
 # -------------------------------------------------------
-# NOW your original install commands will work
+# Install your dependencies
 # -------------------------------------------------------
 RUN apk add --no-cache \
         python3 \
@@ -30,18 +33,16 @@ RUN apk add --no-cache \
 # Install yt-dlp
 RUN pip install --no-cache-dir -U yt-dlp --break-system-packages
 
-# Setup VNC (Your original config)
+# Setup VNC Configuration
 RUN mkdir -p /home/node/.vnc && \
     echo '#!/bin/sh\n/usr/bin/startxfce4' > /home/node/.vnc/xstartup && \
     chmod +x /home/node/.vnc/xstartup && \
     chown -R node:node /home/node/.vnc
 
-# Setup Mozilla profile folder
+# Mozilla profiles
 RUN mkdir -p /home/node/.mozilla && chown -R node:node /home/node/.mozilla
 
-# Expose VNC port
 EXPOSE 5901
 
-# Switch back to node user
 USER node
 WORKDIR /home/node
