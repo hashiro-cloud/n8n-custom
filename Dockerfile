@@ -1,14 +1,23 @@
-# Start from the official n8n image, which is based on Alpine Linux
+# Start from the official n8n image
 FROM n8nio/n8n:latest
 
-# Switch to the root user to install system packages
+# Switch to root user
 USER root
 
-# Install all necessary dependencies in a single, robust command.
-# This includes a minimal XFCE desktop environment for VNC to use,
-# which solves the "no desktop session" error permanently.
-RUN apk update && \
-    apk add --no-cache \
+# -------------------------------------------------------
+# FIX: Re-install apk-tools (removed in n8n v2+)
+# -------------------------------------------------------
+RUN wget -q https://dl-cdn.alpinelinux.org/alpine/v3.20/main/x86_64/apk-tools-static-2.14.4-r0.apk && \
+    tar -xzf apk-tools-static-*.apk && \
+    mv sbin/apk.static /sbin/apk && \
+    rm apk-tools-static-*.apk && \
+    # Initialize apk
+    apk update
+
+# -------------------------------------------------------
+# NOW your original install commands will work
+# -------------------------------------------------------
+RUN apk add --no-cache \
         python3 \
         py3-pip \
         ffmpeg \
@@ -18,27 +27,21 @@ RUN apk update && \
         xfce4-terminal \
         dbus
 
-# Use pip to install the latest version of yt-dlp.
-# The --break-system-packages flag is required for modern images.
+# Install yt-dlp
 RUN pip install --no-cache-dir -U yt-dlp --break-system-packages
 
-# Create the VNC configuration directory for the 'node' user
+# Setup VNC (Your original config)
 RUN mkdir -p /home/node/.vnc && \
-    # Create the xstartup file that VNC will run. This starts the XFCE desktop.
     echo '#!/bin/sh\n/usr/bin/startxfce4' > /home/node/.vnc/xstartup && \
-    # Make the startup file executable
     chmod +x /home/node/.vnc/xstartup && \
-    # Ensure the 'node' user owns all the files
     chown -R node:node /home/node/.vnc
 
-# Create the directory for Firefox profiles and set ownership
+# Setup Mozilla profile folder
 RUN mkdir -p /home/node/.mozilla && chown -R node:node /home/node/.mozilla
 
-# Expose the VNC port
+# Expose VNC port
 EXPOSE 5901
 
-# Switch back to the non-privileged 'node' user for security
+# Switch back to node user
 USER node
-
-# Set the working directory for the node user
 WORKDIR /home/node
