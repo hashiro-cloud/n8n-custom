@@ -1,8 +1,10 @@
+# Change 'latest' to 'latest-alpine' to ensure 'apk' is available
 FROM n8nio/n8n:latest-alpine
 
+# You MUST switch to root to use apk
 USER root
 
-# 1. Re-install the core tools (including Perl for VNC)
+# Now your original command will work perfectly
 RUN apk update && apk add --no-cache \
     perl \
     perl-utils \
@@ -16,8 +18,13 @@ RUN apk update && apk add --no-cache \
     firefox \
     ffmpeg
 
-# 2. Install yt-dlp
+# Install yt-dlp
 RUN python3 -m pip install --no-cache-dir -U yt-dlp --break-system-packages
+
+# ... (rest of your original file remains the same)
+
+# Switch back to the node user at the end for security
+USER node
 
 # 3. Create the missing Xsession that TigerVNC is looking for
 RUN mkdir -p /etc/X11/xinit/ && \
