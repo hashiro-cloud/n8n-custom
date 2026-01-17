@@ -1,44 +1,45 @@
-# Start from the official n8n image, which is based on Alpine Linux
+# Start from the official n8n image (Alpine Linux based)
 FROM n8nio/n8n:2.0.2
 
-# Switch to the root user to install system packages
+# Switch to root to install packages
 USER root
 
-# Install all necessary dependencies in a single, robust command.
-# This includes a minimal XFCE desktop environment for VNC to use,
-# which solves the "no desktop session" error permanently.
+# 1. Install System Dependencies
+# Added 'atomicparsley' -> Required for embedding thumbnails/metadata into MP3s
+# Added 'bash' & 'curl' -> Useful utilities for debugging
 RUN apk update && \
     apk add --no-cache \
         python3 \
         py3-pip \
         ffmpeg \
+        atomicparsley \
+        bash \
+        curl \
         firefox \
         tigervnc \
         xfce4 \
         xfce4-terminal \
         dbus
 
-# Use pip to install the latest version of yt-dlp.
-# The --break-system-packages flag is required for modern images.
-RUN pip install --no-cache-dir -U yt-dlp --break-system-packages
+# 2. Install yt-dlp from the Master Branch (CRITICAL FIX)
+# The standard 'pip install yt-dlp' is too old for the current "n-token" challenges.
+# Installing from the master zip ensures you have the absolute latest fixes.
+RUN pip install --no-cache-dir --break-system-packages https://github.com/yt-dlp/yt-dlp/archive/master.zip
 
-# Create the VNC configuration directory for the 'node' user
+# 3. VNC Setup (Desktop Environment)
+# Creates the startup script for XFCE so you can VNC in if needed
 RUN mkdir -p /home/node/.vnc && \
-    # Create the xstartup file that VNC will run. This starts the XFCE desktop.
     echo '#!/bin/sh\n/usr/bin/startxfce4' > /home/node/.vnc/xstartup && \
-    # Make the startup file executable
     chmod +x /home/node/.vnc/xstartup && \
-    # Ensure the 'node' user owns all the files
     chown -R node:node /home/node/.vnc
 
-# Create the directory for Firefox profiles and set ownership
+# 4. Firefox Setup
+# Ensures the node user has ownership of the Mozilla directory for cookies/profiles
 RUN mkdir -p /home/node/.mozilla && chown -R node:node /home/node/.mozilla
 
-# Expose the VNC port
+# Expose VNC port
 EXPOSE 5901
 
-# Switch back to the non-privileged 'node' user for security
+# Switch back to the standard n8n user
 USER node
-
-# Set the working directory for the node user
 WORKDIR /home/node
