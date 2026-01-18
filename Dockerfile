@@ -1,41 +1,23 @@
-# Start from the official n8n image (Alpine Linux based)
-FROM n8nio/n8n:2.0.2
+# Start from the official n8n image (Always use specific version or latest)
+FROM n8nio/n8n:latest
 
-# Switch to root to install packages
+# Switch to root to install system packages
 USER root
 
 # 1. Install System Dependencies
-# REMOVED: atomicparsley (caused build failure)
-# Note: ffmpeg is sufficient for most metadata operations with yt-dlp
+# Kept Python & FFmpeg as they are powerful for "Execute Command" nodes
+# Removed: firefox, tigervnc, xfce4, dbus (Bloatware since VNC is gone)
 RUN apk update && \
     apk add --no-cache \
         python3 \
         py3-pip \
         ffmpeg \
         bash \
-        curl \
-        firefox \
-        tigervnc \
-        xfce4 \
-        xfce4-terminal \
-        dbus
+        curl
 
-# 2. Install yt-dlp from the Master Branch
-# We use the master branch to get the latest fixes for YouTube's anti-bot changes
-RUN pip install --no-cache-dir --break-system-packages https://github.com/yt-dlp/yt-dlp/archive/master.zip
+# 2. (Optional) Install Common Python Libs
+# If you run python scripts inside n8n, you often need requests or pandas
+# RUN pip install --no-cache-dir requests --break-system-packages
 
-# 3. VNC Setup (Desktop Environment)
-RUN mkdir -p /home/node/.vnc && \
-    echo '#!/bin/sh\n/usr/bin/startxfce4' > /home/node/.vnc/xstartup && \
-    chmod +x /home/node/.vnc/xstartup && \
-    chown -R node:node /home/node/.vnc
-
-# 4. Firefox Setup
-RUN mkdir -p /home/node/.mozilla && chown -R node:node /home/node/.mozilla
-
-# Expose VNC port
-EXPOSE 5901
-
-# Switch back to the standard n8n user
+# Switch back to the standard n8n user for security
 USER node
-WORKDIR /home/node
