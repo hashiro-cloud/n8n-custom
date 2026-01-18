@@ -1,23 +1,20 @@
-# Start from the official n8n image (Always use specific version or latest)
+# Start from the official n8n image
 FROM n8nio/n8n:latest
 
-# Switch to root to install system packages
+# Switch to root to install packages
 USER root
 
 # 1. Install System Dependencies
-# Kept Python & FFmpeg as they are powerful for "Execute Command" nodes
-# Removed: firefox, tigervnc, xfce4, dbus (Bloatware since VNC is gone)
-RUN apk update && \
-    apk add --no-cache \
+# Changed package manager from 'apk' to 'apt-get' because n8n:latest is Debian-based.
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
         python3 \
-        py3-pip \
+        python3-pip \
         ffmpeg \
         bash \
-        curl
+        curl && \
+    # Clean up to reduce image size
+    rm -rf /var/lib/apt/lists/*
 
-# 2. (Optional) Install Common Python Libs
-# If you run python scripts inside n8n, you often need requests or pandas
-# RUN pip install --no-cache-dir requests --break-system-packages
-
-# Switch back to the standard n8n user for security
+# Switch back to the standard n8n user
 USER node
